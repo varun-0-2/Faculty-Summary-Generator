@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Insights Dashboard</title>
+    <!-- Favicon to prevent 404 error (ensure favicon.ico exists in root directory) -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <!-- Tailwind CSS CDN (for development only) -->
+    <!-- For production, remove this and use local Tailwind CSS: -->
+    <!-- 1. Install: npm install -D tailwindcss postcss autoprefixer -->
+    <!-- 2. Run: npx tailwindcss init -p -->
+    <!-- 3. Configure tailwind.config.js: content: ["./*.html"] -->
+    <!-- 4. Create styles.css with @tailwind directives -->
+    <!-- 5. Build: npx tailwindcss -i ./styles.css -o ./dist/output.css -->
+    <!-- 6. Include: <link href="./dist/output.css" rel="stylesheet"> -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF & html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- DOMPurify -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+    <img src="LOGO_ copy.png">
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+    <header class="bg-blue-600 text-white py-4 shadow-md">
+        <div class="container mx-auto px-4">
+            <h1 style="text-align: center;" class="text-2xl font-bold">Data Insights Dashboard</h1>
+        </div>
+    </header>
+    <marquee direction="left" scrollamount="5" behavior="scroll" bgcolor="lightblue">
+        <p>This project was developed by 2nd Year AI&DS  students under the guidance of Dr.K.K.Deepika Mam.</p>
+    </marquee>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- File Upload Section -->
+        <section id="uploadSection" class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">1. Upload Your Data</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Standard Format -->
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-medium mb-2">Standard Format</h3>
+                    <p class="text-gray-600 mb-4">Upload any CSV or Excel file with headers.</p>
+                    <input type="file" id="standardFile" accept=".csv,.xlsx,.xls"
+                           aria-label="Upload standard format file"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+                <!-- Research Format -->
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-medium mb-2">Research Format</h3>
+                    <p class="text-gray-600 mb-4">Upload files with specific columns (e.g., Calender Year, Dept, Scopus indexed).</p>
+                    <input type="file" id="researchFile" accept=".csv,.xlsx,.xls"
+                           aria-label="Upload research format file"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <button onclick="downloadTemplate()"
+                            class="mt-4 bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">
+                        Download Template
+                    </button>
+                </div>
+            </div>
+            <div id="filePreview" class="mt-4 hidden">
+                <h3 class="font-medium">File Preview</h3>
+                <p id="previewInfo" class="text-gray-600"></p>
+                <div id="previewTable" class="overflow-x-auto"></div>
+                <button onclick="processFile()"
+                        class="mt-4 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
+                    Confirm & Load Data
+                </button>
+            </div>
+            <div id="fileError" class="hidden mt-4 p-4 bg-red-100 text-red-700 rounded"></div>
+            <div id="fileSuccess" class="hidden mt-4 p-4 bg-green-100 text-green-700 rounded"></div>
+        </section>
+
+        <!-- Data Exploration Section -->
+        <section id="exploreSection" class="bg-white rounded-lg shadow-lg p-6 mb-8 hidden">
+            <h2 class="text-xl font-semibold mb-4">2. Explore & Filter Data</h2>
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <button id="showDataBtn" onclick="showData()"
+                        class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        disabled>
+                    View Data
+                </button>
+                <div id="dataLoader" class="hidden w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+            </div>
+            <!-- Filter Controls -->
+            <p>We can add one or more filters.</p>
+            <div id="filterControls" class="hidden mb-4 border-t pt-4">
+                <h3 class="font-medium mb-2">Add Filters</h3>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <select id="filterColumn" class="border rounded px-3 py-2" aria-label="Select column to filter"></select>
+                    <select id="filterType" class="border rounded px-3 py-2" aria-label="Select filter type">
+                        <option value="text">Text Contains</option>
+                        <option value="numeric">Numeric</option>
+                    </select>
+                    <div id="textFilter" class="flex-1">
+                        <input id="textValue" type="text" placeholder="Enter keyword"
+                               class="border rounded px-3 py-2 w-full" aria-label="Enter text filter value">
+                    </div>
+                    <div id="numericFilter" class="hidden flex-1">
+                        <select id="numericOp" class="border rounded px-3 py-2" aria-label="Select numeric operator">
+                            <option value="=">=</option>
+                            <option value=">">></option>
+                            <option value="<"><</option>
+                            <option value=">=">≥</option>
+                            <option value="<=">≤</option>
+                            <option value="!=">≠</option>
+                        </select>
+                        <input id="numericValue" type="number" placeholder="Enter number"
+                               class="border rounded px-3 py-2 w-full" aria-label="Enter numeric filter value">
+                    </div>
+                    <button onclick="addFilter()"
+                            class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
+                        Add Filter
+                    </button>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-medium">Active Filters</h4>
+                    <div id="filterList" class="mt-2 space-y-2"></div>
+                    <div class="flex gap-4 mt-4">
+                        <select id="filterLogic" class="border rounded px-3 py-2" aria-label="Select filter logic">
+                            <option value="AND">Match ALL</option>
+                            <option value="OR">Match ANY</option>
+                        </select>
+                        <button onclick="applyFilters()"
+                                class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
+                            Apply Filters
+                        </button>
+                        <button onclick="resetFilters()"
+                                class="bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600">
+                            Reset Filters
+                        </button>
+                        <button onclick="undoFilter()"
+                                class="bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                id="undoFilterBtn" disabled>
+                            Undo Filter
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Data Table -->
+            <div id="dataTable" class="overflow-x-auto hidden">
+                <p id="tableInfo" class="text-gray-600 mb-2"></p>
+                <div id="tableContent"></div>
+            </div>
+            <!-- Download Options -->
+            <div class="flex flex-wrap gap-4 mt-4">
+                <button onclick="downloadCSV()"
+                        class="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">
+                    Download CSV
+                </button>
+                <button onclick="downloadExcel()"
+                        class="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">
+                    Download Excel
+                </button>
+                <button onclick="downloadPDF()"
+                        class="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">
+                    Download PDF
+                </button>
+            </div>
+        </section>
+
+        <!-- Visualization Section -->
+        <section id="vizSection" class="bg-white rounded-lg shadow-lg p-6 mb-8 hidden">
+            <h2 class="text-xl font-semibold mb-4">3. Create Visualizations</h2>
+            <button onclick="showChartConfig()"
+                    class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    id="chartBtn" disabled>
+                Configure Chart
+            </button>
+            <!-- Chart Configuration -->
+            <div id="chartConfig" class="hidden mt-4 border-t pt-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-medium mb-2">Chart Type</label>
+                        <select id="chartType" class="border rounded px-3 py-2 w-full" aria-label="Select chart type">
+                            <option value="bar">Bar</option>
+                            <option value="line">Line</option>
+                            <option value="scatter">Scatter</option>
+                            <option value="pie">Pie</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium mb-2">X-Axis</label>
+                        <select id="xAxis" class="border rounded px-3 py-2 w-full" aria-label="Select X-axis column"></select>
+                    </div>
+                    <div>
+                        <label class="block font-medium mb-2">Y-Axis</label>
+                        <select id="yAxis" class="border rounded px-3 py-2 w-full" aria-label="Select Y-axis column"></select>
+                    </div>
+                    <div>
+                        <label class="block font-medium mb-2">Chart Title</label>
+                        <input id="chartTitle" type="text" placeholder="Enter chart title"
+                               class="border rounded px-3 py-2 w-full" aria-label="Enter chart title">
+                    </div>
+                </div>
+                <div class="flex gap-4 mt-4">
+                    <button onclick="generateChart()"
+                            class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
+                        Generate Chart
+                    </button>
+                    <button onclick="hideChartConfig()"
+                            class="bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+                <div id="chartLoader" class="hidden w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mt-4"></div>
+                <div id="chartError" class="hidden mt-4 p-4 bg-red-100 text-red-700 rounded"></div>
+                <div id="chartSuccess" class="hidden mt-4 p-4 bg-green-100 text-green-700 rounded"></div>
+            </div>
+            <!-- Chart Output -->
+            <div id="chartOutput" class="mt-4 hidden">
+                <div id="chart" class="w-full h-[500px]"></div>
+                <button onclick="downloadChart()"
+                        class="mt-4 bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">
+                    Download Chart
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // State Management
+        class DashboardState {
+            constructor() {
+                this.data = [];
+                this.headers = [];
+                this.columnTypes = {};
+                this.filters = [];
+                this.filterHistory = [];
+                this.filteredData = [];
+                this.format = 'standard';
+                this.fileData = null;
+                this.rowLimit = 100;
+            }
+        }
+
+        const state = new DashboardState();
+
+        // Initialize jsPDF
+        window.jsPDF = window.jspdf.jsPDF;
+
+        // Utility Functions
+        function showLoader(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function hideLoader(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function showError(id, message) {
+            const el = document.getElementById(id);
+            el.textContent = message;
+            el.classList.remove('hidden');
+        }
+
+        function showSuccess(id, message) {
+            const el = document.getElementById(id);
+            el.textContent = message;
+            el.classList.remove('hidden');
+        }
+
+        function clearMessages(prefix = 'file') {
+            document.getElementById(`${prefix}Error`).classList.add('hidden');
+            document.getElementById(`${prefix}Success`).classList.add('hidden');
+        }
+
+        function downloadFile(content, name, type) {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // File Handling
+        async function handleFile(event, format) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.size > 10 * 1024 * 1024) {
+                showError('fileError', 'File size exceeds 10MB limit');
+                return;
+            }
+
+            state.format = format;
+            showLoader('dataLoader');
+            clearMessages();
+
+            try {
+                const data = await readFile(file);
+                state.fileData = data;
+                previewFile(data);
+            } catch (error) {
+                showError('fileError', `Error reading file: ${error.message}`);
+            } finally {
+                hideLoader('dataLoader');
+            }
+        }
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                if (file.name.endsWith('.csv')) {
+                    reader.readAsText(file);
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = () => reject(new Error(`Failed to read CSV file: ${file.name}`));
+                } else {
+                    reader.readAsArrayBuffer(file);
+                    reader.onload = (e) => {
+                        try {
+                            const workbook = XLSX.read(e.target.result, { type: 'array' });
+                            const sheetName = workbook.SheetNames[0];
+                            const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+                            resolve(csv);
+                        } catch (error) {
+                            reject(new Error(`Failed to parse Excel file: ${error.message}`));
+                        }
+                    };
+                    reader.onerror = () => reject(new Error(`Failed to read Excel file: ${file.name}`));
+                }
+            });
+        }
+
+        function previewFile(data) {
+            try {
+                const parsed = parseCSV(data);
+                const rows = parsed.slice(0, 6);
+                if (rows.length < 2) {
+                    showError('fileError', 'File must contain headers and at least one data row');
+                    return;
+                }
+                renderTable('previewTable', rows);
+                document.getElementById('previewInfo').textContent = `Showing first 5 rows of ${parsed.length - 1} total rows`;
+                document.getElementById('filePreview').classList.remove('hidden');
+                showSuccess('fileSuccess', 'Preview loaded. Confirm to proceed.');
+            } catch (error) {
+                showError('fileError', `Invalid file structure: ${error.message}`);
+            }
+        }
+
+        function processFile() {
+            const data = state.fileData;
+            if (!data) return;
+
+            try {
+                const parsedData = parseCSV(data);
+                if (state.format === 'research') {
+                    const headers = parsedData[0].map(h => h.toLowerCase());
+                    const required = [
+                        'calender year', 's.no', 'dept', 'id', 'name', 'key areas of research',
+                        'tot.', 'scopus indexed', 'sci/scie', 'conference papers', 'book chapters',
+                        '1st author', '2nd', '3rd', 'others', 'no. of patents published', 'no. of books authored'
+                    ];
+                    const missing = required.filter(h => !headers.includes(h.toLowerCase()));
+                    if (missing.length) {
+                        showError('fileError', `Missing columns: ${missing.join(', ')}`);
+                        return;
+                    }
+                }
+
+                state.data = parsedData;
+                state.headers = state.data[0];
+                state.filteredData = state.data;
+                detectColumnTypes();
+                updateSelects();
+                document.getElementById('filePreview').classList.add('hidden');
+                document.getElementById('exploreSection').classList.remove('hidden');
+                document.getElementById('showDataBtn').disabled = false;
+                document.getElementById('chartBtn').disabled = false;
+                showSuccess('fileSuccess', 'Data loaded successfully!');
+            } catch (error) {
+                showError('fileError', `Error processing file: ${error.message}`);
+            }
+        }
+
+        function parseCSV(data) {
+            if (typeof data !== 'string') {
+                throw new Error('Expected string data for CSV parsing');
+            }
+            const parsed = Papa.parse(data, {
+                skipEmptyLines: true,
+                trim: true,
+                dynamicTyping: false,
+                transform: value => value.trim() // Clean whitespace from values
+            });
+            if (!parsed.data || parsed.data.length === 0) {
+                throw new Error('Empty or invalid CSV file');
+            }
+            return parsed.data;
+        }
+
+        function detectColumnTypes() {
+            state.columnTypes = {};
+            for (let i = 0; i < state.headers.length; i++) {
+                if (state.headers[i].toLowerCase().includes('year')) {
+                    state.columnTypes[i] = 'category';
+                    continue;
+                }
+                let isNumeric = true;
+                let isDiscrete = true;
+                const values = [];
+                for (let j = 1; j < Math.min(state.data.length, 11); j++) {
+                    const value = state.data[j][i];
+                    if (value && isNaN(value)) {
+                        isNumeric = false;
+                        isDiscrete = false;
+                        break;
+                    }
+                    const num = Number(value);
+                    if (!Number.isInteger(num)) {
+                        isDiscrete = false;
+                    }
+                    values.push(num);
+                }
+                if (isNumeric) {
+                    const uniqueValues = [...new Set(values)];
+                    const range = Math.max(...values) - Math.min(...values);
+                    isDiscrete = uniqueValues.length <= 10 || range < 100;
+                    const isYearLike = values.every(v => Number.isInteger(v) && v >= 1900 && v <= 2100);
+                    state.columnTypes[i] = isYearLike || isDiscrete ? 'category' : 'numeric';
+                } else {
+                    state.columnTypes[i] = 'text';
+                }
+            }
+            console.log('Column types:', state.columnTypes);
+        }
+
+        function updateSelects() {
+            const selects = ['filterColumn', 'xAxis', 'yAxis'];
+            selects.forEach(id => {
+                const select = document.getElementById(id);
+                select.innerHTML = state.headers.map((h, i) => `<option value="${i}">${DOMPurify.sanitize(h)}</option>`).join('');
+            });
+            updateFilterType();
+        }
+
+        function downloadTemplate() {
+            const headers = [
+                'Calender Year', 'S.no', 'Dept', 'ID', 'Name', 'Key Areas of Research',
+                'Tot.', 'Scopus indexed', 'SCI/SCIE', 'Conference Papers', 'Book Chapters',
+                '1st author', '2nd', '3rd', 'others', 'No. of patents published', 'No. of Books authored'
+            ];
+            const ws = XLSX.utils.aoa_to_sheet([headers]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Template');
+            XLSX.writeFile(wb, 'research_template.xlsx');
+            showSuccess('fileSuccess', 'Template downloaded successfully!');
+        }
+
+        // Data Exploration
+        async function showData() {
+            showLoader('dataLoader');
+            try {
+                renderTable('tableContent', state.data.slice(0, state.rowLimit + 1));
+                document.getElementById('tableInfo').textContent = state.data.length - 1 > state.rowLimit
+                    ? `Showing first ${state.rowLimit} of ${state.data.length - 1} rows (download for full data)`
+                    : `Showing all ${state.data.length - 1} rows`;
+                document.getElementById('filterControls').classList.remove('hidden');
+                document.getElementById('dataTable').classList.remove('hidden');
+                document.getElementById('vizSection').classList.remove('hidden');
+            } catch (error) {
+                showError('fileError', `Error displaying data: ${error.message}`);
+            } finally {
+                hideLoader('dataLoader');
+            }
+        }
+
+        function renderTable(elementId, data) {
+            const table = document.getElementById(elementId);
+            table.innerHTML = `
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="bg-blue-500 text-white">
+                            ${data[0].map(h => `<th scope="col" class="border p-2">${DOMPurify.sanitize(h)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.slice(1).map(row => `
+                            <tr class="hover:bg-gray-100">
+                                ${row.map(cell => `<td class="border p-2">${DOMPurify.sanitize(cell)}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function updateFilterType() {
+            const col = document.getElementById('filterColumn').value;
+            const type = document.getElementById('filterType');
+            type.value = state.columnTypes[col] === 'numeric' ? 'numeric' : 'text';
+            document.getElementById('textFilter').classList.toggle('hidden', type.value === 'numeric');
+            document.getElementById('numericFilter').classList.toggle('hidden', type.value !== 'numeric');
+        }
+
+        function addFilter() {
+            const col = document.getElementById('filterColumn').value;
+            const type = document.getElementById('filterType').value;
+            let filter;
+
+            state.filterHistory.push([...state.filters]);
+            document.getElementById('undoFilterBtn').disabled = false;
+
+            if (type === 'text') {
+                const value = document.getElementById('textValue').value.trim();
+                if (!value) {
+                    showError('fileError', 'Please enter a search term');
+                    return;
+                }
+                filter = { type: 'text', col, name: state.headers[col], value: value.toLowerCase() };
+                document.getElementById('textValue').value = '';
+            } else {
+                const op = document.getElementById('numericOp').value;
+                const value = parseFloat(document.getElementById('numericValue').value);
+                if (isNaN(value)) {
+                    showError('fileError', 'Please enter a valid number');
+                    return;
+                }
+                filter = { type: 'numeric', col, name: state.headers[col], op, value };
+                document.getElementById('numericValue').value = '';
+            }
+
+            state.filters.push(filter);
+            updateFilterList();
+        }
+
+        function updateFilterList() {
+            const list = document.getElementById('filterList');
+            list.innerHTML = state.filters.length ? state.filters.map((f, i) => `
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span>${DOMPurify.sanitize(f.type === 'text' ? `${f.name} contains "${f.value}"` : `${f.name} ${f.op} ${f.value}`)}</span>
+                    <button onclick="removeFilter(${i})" class="bg-red-500 text-white px-2 py-1 rounded">Remove</button>
+                </div>
+            `).join('') : '<p class="text-gray-500">No filters applied</p>';
+        }
+
+        function removeFilter(index) {
+            state.filterHistory.push([...state.filters]);
+            state.filters.splice(index, 1);
+            updateFilterList();
+            document.getElementById('undoFilterBtn').disabled = false;
+        }
+
+        function undoFilter() {
+            if (state.filterHistory.length) {
+                state.filters = state.filterHistory.pop();
+                updateFilterList();
+                applyFilters();
+                document.getElementById('undoFilterBtn').disabled = state.filterHistory.length === 0;
+            }
+        }
+
+        function applyFilters() {
+            try {
+                const logic = document.getElementById('filterLogic').value;
+                state.filteredData = [state.data[0]];
+                const rows = state.data.slice(1);
+
+                state.filteredData.push(...rows.filter(row => {
+                    return logic === 'AND'
+                        ? state.filters.every(f => checkFilter(row, f))
+                        : state.filters.some(f => checkFilter(row, f));
+                }));
+
+                renderTable('tableContent', state.filteredData.slice(0, state.rowLimit + 1));
+                document.getElementById('tableInfo').textContent = state.filteredData.length - 1 > state.rowLimit
+                    ? `Showing first ${state.rowLimit} of ${state.filteredData.length - 1} rows (download for full data)`
+                    : `Showing all ${state.filteredData.length - 1} rows`;
+                showSuccess('fileSuccess', `Showing ${state.filteredData.length - 1} rows`);
+            } catch (error) {
+                showError('fileError', `Error applying filters: ${error.message}`);
+            }
+        }
+
+        function checkFilter(row, filter) {
+            const value = row[filter.col];
+            if (filter.type === 'text') {
+                return value?.toLowerCase().includes(filter.value);
+            }
+            const num = parseFloat(value);
+            if (isNaN(num)) return false;
+            switch (filter.op) {
+                case '=': return num === filter.value;
+                case '>': return num > filter.value;
+                case '<': return num < filter.value;
+                case '>=': return num >= filter.value;
+                case '<=': return num <= filter.value;
+                case '!=': return num !== filter.value;
+                default: return false;
+            }
+        }
+
+        function resetFilters() {
+            state.filterHistory.push([...state.filters]);
+            state.filters = [];
+            state.filteredData = state.data;
+            updateFilterList();
+            renderTable('tableContent', state.data.slice(0, state.rowLimit + 1));
+            document.getElementById('tableInfo').textContent = state.data.length - 1 > state.rowLimit
+                ? `Showing first ${state.rowLimit} of ${state.data.length - 1} rows (download for full data)`
+                : `Showing all ${state.data.length - 1} rows`;
+            showSuccess('fileSuccess', 'Filters reset successfully');
+            document.getElementById('undoFilterBtn').disabled = false;
+        }
+
+        function downloadCSV() {
+            if (state.filteredData.length < 2) {
+                showError('fileError', 'No data to download');
+                return;
+            }
+            const csv = Papa.unparse(state.filteredData);
+            downloadFile(csv, 'filtered_data.csv', 'text/csv');
+            showSuccess('fileSuccess', 'CSV downloaded successfully!');
+        }
+
+        function downloadExcel() {
+            if (state.filteredData.length < 2) {
+                showError('fileError', 'No data to download');
+                return;
+            }
+            const ws = XLSX.utils.aoa_to_sheet(state.filteredData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Data');
+            XLSX.writeFile(wb, 'filtered_data.xlsx');
+            showSuccess('fileSuccess', 'Excel file downloaded successfully!');
+        }
+
+        function downloadPDF() {
+            if (state.filteredData.length < 2) {
+                showError('fileError', 'No data to download');
+                return;
+            }
+            const table = document.getElementById('tableContent').querySelector('table');
+            html2canvas(table).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({ orientation: 'landscape' });
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                let heightLeft = imgProps.height;
+                let position = 0;
+
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, (imgProps.height * pdfWidth) / imgProps.width);
+                heightLeft -= pdfHeight;
+
+                while (heightLeft > 0) {
+                    position -= pdfHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, (imgProps.height * pdfWidth) / imgProps.width);
+                    heightLeft -= pdfHeight;
+                }
+
+                pdf.save('filtered_data.pdf');
+                showSuccess('fileSuccess', 'PDF downloaded successfully!');
+            }).catch(error => {
+                showError('fileError', `Error generating PDF: ${error.message}`);
+            });
+        }
+
+        // Visualization
+        function showChartConfig() {
+            document.getElementById('chartConfig').classList.remove('hidden');
+        }
+
+        function hideChartConfig() {
+            document.getElementById('chartConfig').classList.add('hidden');
+        }
+
+        async function generateChart() {
+            const type = document.getElementById('chartType').value;
+            const xCol = parseInt(document.getElementById('xAxis').value);
+            const yCol = parseInt(document.getElementById('yAxis').value);
+            const title = document.getElementById('chartTitle').value || `${DOMPurify.sanitize(state.headers[yCol])} vs ${DOMPurify.sanitize(state.headers[xCol])}`;
+
+            if (xCol === yCol) {
+                showError('chartError', 'X and Y axes must be different columns');
+                return;
+            }
+
+            showLoader('chartLoader');
+            clearMessages('chart');
+
+            try {
+                const dataRows = state.filteredData.length > 1 ? state.filteredData.slice(1) : state.data.slice(1);
+                if (dataRows.length === 0) {
+                    throw new Error('No data available for charting');
+                }
+
+                // Filter valid rows, excluding null, undefined, or empty strings
+                const validRows = dataRows.filter(row => {
+                    const xValid = row && row[xCol] != null && String(row[xCol]).trim() !== '';
+                    const yValid = row && row[yCol] != null && String(row[yCol]).trim() !== '';
+                    return xValid && yValid;
+                });
+                console.log('Valid rows:', JSON.stringify(validRows, null, 2));
+                if (validRows.length === 0) {
+                    throw new Error('No valid data for selected columns after filtering');
+                }
+
+                // Sort validRows by xCol (e.g., years) in ascending order
+                validRows.sort((a, b) => {
+                    const aVal = Number(String(a[xCol]).trim());
+                    const bVal = Number(String(b[xCol]).trim());
+                    return aVal - bVal; // Numeric sort for ascending order
+                });
+                console.log('Sorted rows (X-axis):', JSON.stringify(validRows, null, 2));
+
+                let trace;
+                const xAxisType = state.columnTypes[xCol];
+                const yAxisType = state.columnTypes[yCol];
+                console.log('X-axis type:', xAxisType, 'Y-axis type:', yAxisType);
+
+                if (type === 'pie') {
+                    const labels = [...new Set(validRows.map(row => String(row[xCol]).trim()))];
+                    const values = labels.map(val => validRows.filter(row => String(row[xCol]).trim() === val).length);
+                    trace = { labels, values, type: 'pie' };
+                } else {
+                    let xValues = validRows.map(row => String(row[xCol]).trim());
+                    let yValues = validRows.map(row => String(row[yCol]).trim());
+
+                    console.log('Raw X values:', JSON.stringify(xValues));
+                    console.log('Raw Y values:', JSON.stringify(yValues));
+
+                    if (yAxisType === 'numeric') {
+                        yValues = validRows.map(row => {
+                            const val = Number(row[yCol]);
+                            if (isNaN(val)) {
+                                console.warn(`Invalid numeric Y value: ${row[yCol]}`);
+                                return null;
+                            }
+                            return val;
+                        }).filter(val => val !== null);
+                        if (yValues.length === 0) {
+                            throw new Error('Y-axis contains no valid numeric values');
+                        }
+                        xValues = xValues.slice(0, yValues.length); // Align lengths
+                    }
+
+                    if (xValues.length !== yValues.length) {
+                        throw new Error(`Mismatched X and Y value lengths: ${xValues.length} vs ${yValues.length}`);
+                    }
+
+                    trace = {
+                        x: xValues,
+                        y: yValues,
+                        type,
+                        mode: type === 'scatter' ? 'markers' : 'lines+markers',
+                        marker: { size: 8 }
+                    };
+                }
+
+                // Create X-axis category array in ascending order
+                const xCategoryArray = [...new Set(validRows.map(row => String(row[xCol]).trim()))].sort((a, b) => Number(a) - Number(b));
+                console.log('X-axis category array:', JSON.stringify(xCategoryArray));
+
+                // Create sorted unique Y values for category axis
+                const yCategoryArray = yAxisType !== 'numeric'
+                    ? [...new Set(validRows.map(row => String(row[yCol]).trim()))].sort((a, b) => {
+                          const aNum = Number(a);
+                          const bNum = Number(b);
+                          if (!isNaN(aNum) && !isNaN(bNum)) {
+                              return aNum - bNum; // Numeric sort for years
+                          }
+                          return a.localeCompare(b); // String sort
+                      }).filter(val => val !== '')
+                    : undefined;
+                console.log('Y-axis category array:', JSON.stringify(yCategoryArray));
+
+                const layout = {
+                    title: { text: DOMPurify.sanitize(title), x: 0.5, xanchor: 'center' },
+                    xaxis: {
+                        title: DOMPurify.sanitize(state.headers[xCol]),
+                        type: 'category', // Use category to preserve order
+                        categoryorder: 'array',
+                        categoryarray: xCategoryArray
+                    },
+                    yaxis: {
+                        title: type === 'pie' ? '' : DOMPurify.sanitize(state.headers[yCol]),
+                        type: yAxisType === 'numeric' ? 'linear' : 'category',
+                        categoryorder: yAxisType !== 'numeric' ? 'array' : undefined,
+                        categoryarray: yCategoryArray,
+                        autorange: true
+                    },
+                    autosize: true
+                };
+
+                Plotly.newPlot('chart', [trace], layout, { responsive: true });
+                document.getElementById('chartOutput').classList.remove('hidden');
+                hideChartConfig();
+                showSuccess('chartSuccess', 'Chart generated successfully!');
+            } catch (error) {
+                showError('chartError', `Error generating chart: ${error.message}`);
+                console.error('Chart generation error:', error);
+            } finally {
+                hideLoader('chartLoader');
+            }
+        }
+
+        function downloadChart() {
+            try {
+                Plotly.downloadImage('chart', { format: 'png', filename: 'chart', width: 800, height: 600 });
+                showSuccess('chartSuccess', 'Chart downloaded successfully!');
+            } catch (error) {
+                showError('chartError', `Error downloading chart: ${error.message}`);
+            }
+        }
+
+        // Event Listeners
+        function initializeEventListeners() {
+            document.getElementById('standardFile').addEventListener('change', (e) => handleFile(e, 'standard'));
+            document.getElementById('researchFile').addEventListener('change', (e) => handleFile(e, 'research'));
+            document.getElementById('filterColumn').addEventListener('change', updateFilterType);
+            document.getElementById('filterType').addEventListener('change', updateFilterType);
+        }
+
+        // Initialize
+        initializeEventListeners();
+    </script>
+
+    <!-- Optional: Replace <marquee> with CSS animation for modern compatibility -->
+    <style>
+        .marquee {
+            background-color: lightblue;
+            overflow: hidden;
+            white-space: nowrap;
+            width: 100%;
+        }
+        .marquee p {
+            display: inline-block;
+            animation: marquee 15s linear infinite;
+        }
+        @keyframes marquee {
+            from { transform: translateX(100%); }
+            to { transform: translateX(-100%); }
+        }
+    </style>
+    <!-- Uncomment to use CSS marquee instead of <marquee> tag -->
+    <!--
+    <div class="marquee">
+        <p>This project was developed by AI&DS 2nd-year students Rajkumar, Varun, and others, under the guidance of Dr. Deepika Madam.</p>
+    </div>
+    -->
+</body>
+</html>
